@@ -2,7 +2,7 @@
 bot.py - Bot de Confesiones Anónimas para Telegram
 Creado para: @Tekvoblack
 Bot: @ConfesionesTekvoBot
-Con sistema Anti-Spam integrado
+Con sistema Anti-Spam integrado y Flask para Render
 """
 
 import telebot
@@ -10,6 +10,8 @@ from telebot import types
 from config import get_config
 import sqlite3
 from datetime import datetime
+from flask import Flask
+from threading import Thread
 
 # ============================================
 # 1. OBTENER CONFIGURACIÓN
@@ -18,13 +20,47 @@ config = get_config()
 TOKEN = config['token']
 CHAT_ID = config['chat_id']
 SOPORTE = config['soporte']
-ADMIN_ID = config['admin_id']  # Tu ID de admin
+ADMIN_ID = config['admin_id']
 
 # Username del bot
 BOT_USERNAME = "ConfesionesTekvoBot"
 
 # ============================================
-# 2. CONFIGURAR BASE DE DATOS
+# 2. SERVIDOR WEB PARA RENDER (FLASK)
+# ============================================
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return """
+    <h1>✅ Bot de Confesiones Anónimas - ONLINE</h1>
+    <p>🤖 Bot: @ConfesionesTekvoBot</p>
+    <p>👤 Admin: @Tekvoblack</p>
+    <p>📊 Estado: Funcionando 24/7</p>
+    """
+
+@app.route('/health')
+def health():
+    return "OK", 200
+
+@app.route('/stats')
+def stats():
+    return f"""
+    <h1>📊 Estadísticas del Bot</h1>
+    <p>Total confesiones: {get_total_confessions()}</p>
+    <p>Confesiones hoy: {get_today_confessions()}</p>
+    """
+
+def run_server():
+    app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    server = Thread(target=run_server)
+    server.daemon = True
+    server.start()
+
+# ============================================
+# 3. CONFIGURAR BASE DE DATOS
 # ============================================
 conn = sqlite3.connect('confesiones.db', check_same_thread=False)
 cursor = conn.cursor()
@@ -55,7 +91,7 @@ cursor.execute('''
 conn.commit()
 
 # ============================================
-# 3. FUNCIONES DE BASE DE DATOS
+# 4. FUNCIONES DE BASE DE DATOS
 # ============================================
 def check_daily_limit(user_id, username, max_confessions=6):
     """
@@ -124,12 +160,12 @@ def get_today_confessions():
     return cursor.fetchone()[0]
 
 # ============================================
-# 4. INICIALIZAR EL BOT
+# 5. INICIALIZAR EL BOT
 # ============================================
 bot = telebot.TeleBot(TOKEN, parse_mode="Markdown")
 
 # ============================================
-# 5. COMANDOS
+# 6. COMANDOS
 # ============================================
 
 @bot.message_handler(commands=['start'])
@@ -250,7 +286,7 @@ def comando_stats(message):
     bot.send_message(message.chat.id, texto_stats)
 
 # ============================================
-# 6. MANEJAR CONFESIONES
+# 7. MANEJAR CONFESIONES
 # ============================================
 
 @bot.message_handler(content_types=['text', 'photo'])
@@ -414,9 +450,12 @@ def manejar_confesion(message):
         traceback.print_exc()
 
 # ============================================
-# 7. INICIAR EL BOT
+# 8. INICIAR EL BOT
 # ============================================
 if __name__ == "__main__":
+    # Iniciar servidor web para Render (IMPORTANTE)
+    keep_alive()
+    
     print("🤖" + "="*50)
     print("🤖  BOT DE CONFESIONES ANÓNIMAS")
     print("🤖  Bot: @ConfesionesTekvoBot")
@@ -425,9 +464,11 @@ if __name__ == "__main__":
     print("🤖" + "="*50)
     print("✅ Base de datos: SQLite (confesiones.db)")
     print("✅ Anti-spam: 6 confesiones/día")
+    print("✅ Servidor Flask: PUERTO 8080")
     print("✅ Bot iniciado correctamente...")
     print("📡 Escaneando nuevos mensajes...")
     print("🔒 Modo anónimo: ACTIVADO")
+    print("🌐 Hosting: Render.com")
     print("🤖" + "="*50)
     
     bot.infinity_polling()
